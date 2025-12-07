@@ -1,0 +1,41 @@
+{
+  "playlists": [
+    {
+      "id": "main",
+      "name": "My Playlist",
+      "songs": [
+        {
+          "title": "good for the ghost - Alge",
+          "artist": "Unknown Artist",
+          "filename": "1765123905266-good for the ghost - Alge.mp3",
+          "duration": "1:42"
+        },
+        {
+          "title": "good for the ghost - Alge",
+          "artist": "Unknown Artist",
+          "filename": "1765124664493-good for the ghost - Alge.mp3",
+          "duration": "1:42"
+        },
+        {
+          "title": "good for the ghost - Alge",
+          "artist": "Unknown Artist",
+          "filename": "1765124731755-good for the ghost - Alge.mp3",
+          "duration": "1:42"
+        }
+      ]
+    },
+    {
+      "id": "1765125643806",
+      "name": "hi",
+      "songs": [
+        {
+          "title": "xyz",
+          "artist": "Unknown Artist",
+          "filename": "1765125654058-xyz.mp3",
+          "duration": "1:42"
+        }
+      ]
+    }
+  ],
+  "currentPlaylist": "1765125643806"
+}
