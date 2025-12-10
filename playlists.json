@@ -17,9 +17,27 @@
           "duration": "1:42"
         },
         {
+          "title": "xyz",
+          "artist": "Unknown Artist",
+          "filename": "1765127751868-xyz.mp3",
+          "duration": "1:42"
+        },
+        {
           "title": "good for the ghost - Alge",
           "artist": "Unknown Artist",
           "filename": "1765124731755-good for the ghost - Alge.mp3",
+          "duration": "1:42"
+        },
+        {
+          "title": "xyz",
+          "artist": "Unknown Artist",
+          "filename": "1765127725734-xyz.mp3",
+          "duration": "1:42"
+        },
+        {
+          "title": "xyz",
+          "artist": "Unknown Artist",
+          "filename": "1765180203757-xyz.mp3",
           "duration": "1:42"
         }
       ]
@@ -37,5 +55,5 @@
       ]
     }
   ],
-  "currentPlaylist": "1765125643806"
+  "currentPlaylist": "main"
 }

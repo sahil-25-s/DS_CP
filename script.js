@@ -288,6 +288,141 @@ function showSection(section) {
         document.getElementById('librarySection').classList.add('active');
         document.querySelector('.nav-link[onclick*="library"]').classList.add('active');
         displayLibrary();
+    } else if (section === 'stats') {
+        document.getElementById('statsSection').classList.add('active');
+        document.querySelector('.nav-link[onclick*="stats"]').classList.add('active');
+    } else if (section === 'most-played') {
+        document.getElementById('mostPlayedSection').classList.add('active');
+        loadMostPlayed();
+    } else if (section === 'recently-played') {
+        document.getElementById('recentlyPlayedSection').classList.add('active');
+        loadRecentlyPlayed();
+    }
+}
+
+async function loadMostPlayed() {
+    try {
+        const response = await fetch('/api/songs/most-played');
+        const songs = await response.json();
+        const contentDiv = document.getElementById('mostPlayedContent');
+        
+        console.log('Most played songs:', songs);
+        
+        if (songs.length === 0) {
+            contentDiv.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-fire"></i>
+                    <p>No play history yet</p>
+                    <small>Start listening to see your most played songs</small>
+                </div>
+            `;
+            return;
+        }
+        
+        contentDiv.innerHTML = `
+            <div class="table-header">
+                <div class="th-number">#</div>
+                <div class="th-title">Title</div>
+                <div class="th-artist">Artist</div>
+                <div class="th-duration">Plays</div>
+                <div class="th-actions"></div>
+            </div>
+            <div class="table-body">
+                ${songs.map((song, index) => `
+                    <div class="song-row" onclick="playSongFromStats('${song.filename}')">
+                        <div class="song-index">
+                            <span class="song-num">${index + 1}</span>
+                            <i class="fas fa-play song-play-icon"></i>
+                        </div>
+                        <div class="song-title">${song.title}</div>
+                        <div class="song-artist">${song.artist}</div>
+                        <div class="song-duration">
+                            <i class="fas fa-play-circle"></i> ${song.plays}
+                        </div>
+                        <div class="song-actions"></div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    } catch (error) {
+        console.error('Error loading most played:', error);
+        showMessage('Error loading most played', 'error');
+    }
+}
+
+async function loadRecentlyPlayed() {
+    try {
+        const response = await fetch('/api/songs/recently-played');
+        const songs = await response.json();
+        const contentDiv = document.getElementById('recentlyPlayedContent');
+        
+        console.log('Recently played songs:', songs);
+        
+        if (songs.length === 0) {
+            contentDiv.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-history"></i>
+                    <p>No listening history</p>
+                    <small>Songs you play will appear here</small>
+                </div>
+            `;
+            return;
+        }
+        
+        contentDiv.innerHTML = `
+            <div class="table-header">
+                <div class="th-number">#</div>
+                <div class="th-title">Title</div>
+                <div class="th-artist">Artist</div>
+                <div class="th-duration"><i class="far fa-clock"></i></div>
+                <div class="th-actions"></div>
+            </div>
+            <div class="table-body">
+                ${songs.map((song, index) => `
+                    <div class="song-row" onclick="playSongFromStats('${song.filename}')">
+                        <div class="song-index">
+                            <span class="song-num">${index + 1}</span>
+                            <i class="fas fa-play song-play-icon"></i>
+                        </div>
+                        <div class="song-title">${song.title}</div>
+                        <div class="song-artist">${song.artist}</div>
+                        <div class="song-duration">${song.duration || '0:00'}</div>
+                        <div class="song-actions"></div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    } catch (error) {
+        console.error('Error loading recently played:', error);
+        showMessage('Error loading recently played', 'error');
+    }
+}
+
+async function playSongFromStats(filename) {
+    const data = await fetch('/api/playlists').then(r => r.json());
+    let foundSong = null;
+    let foundPlaylistId = null;
+    
+    for (const p of data.playlists) {
+        const songIndex = p.songs.findIndex(s => s.filename === filename);
+        if (songIndex !== -1) {
+            foundSong = p.songs[songIndex];
+            foundPlaylistId = p.id;
+            break;
+        }
+    }
+    
+    if (foundSong && foundPlaylistId) {
+        if (currentPlaylistId !== foundPlaylistId) {
+            await switchPlaylist(foundPlaylistId);
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        const index = playlist.findIndex(s => s.filename === filename);
+        if (index !== -1) {
+            playSongAtIndex(index);
+        }
+    } else {
+        showMessage('Song not found', 'error');
     }
 }
 
@@ -314,7 +449,7 @@ function togglePositionInput() {
     }
 }
 
-function playSongAtIndex(index) {
+async function playSongAtIndex(index) {
     if (index < 0 || index >= playlist.length) return;
     
     currentIndex = index;
@@ -327,6 +462,13 @@ function playSongAtIndex(index) {
     document.getElementById('currentTitle').textContent = song.title;
     document.getElementById('currentArtist').textContent = song.artist;
     document.getElementById('playPauseBtn').innerHTML = '<i class="fas fa-pause"></i>';
+    
+    try {
+        await fetch(`/api/play/${song.filename}`, { method: 'POST' });
+        console.log('Play tracked:', song.filename);
+    } catch (error) {
+        console.error('Error tracking play:', error);
+    }
     
     displayPlaylist();
     displayLibrary();

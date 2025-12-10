@@ -8,6 +8,10 @@ const app = express();
 const PORT = 3000;
 const DATA_FILE = path.join(__dirname, 'playlists.json');
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
+const STATS_FILE = path.join(__dirname, 'stats.json');
+
+// HashMap for fast search - O(1) lookup
+let searchIndex = new Map();
 
 if (!fs.existsSync(UPLOAD_DIR)) {
     fs.mkdirSync(UPLOAD_DIR);
@@ -54,10 +58,47 @@ function loadPlaylists() {
 function savePlaylists(data) {
     try {
         fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+        buildSearchIndex(data);
         return true;
     } catch (err) {
         console.error('Error saving playlists:', err);
         return false;
+    }
+}
+
+function buildSearchIndex(data) {
+    searchIndex.clear();
+    data.playlists.forEach(playlist => {
+        playlist.songs.forEach((song, index) => {
+            const words = [...song.title.toLowerCase().split(/\s+/), ...song.artist.toLowerCase().split(/\s+/)];
+            words.forEach(word => {
+                if (word.length > 0) {
+                    if (!searchIndex.has(word)) {
+                        searchIndex.set(word, []);
+                    }
+                    searchIndex.get(word).push({ song, playlistId: playlist.id, playlistName: playlist.name, index });
+                }
+            });
+        });
+    });
+}
+
+function loadStats() {
+    try {
+        if (fs.existsSync(STATS_FILE)) {
+            return JSON.parse(fs.readFileSync(STATS_FILE, 'utf8'));
+        }
+    } catch (err) {
+        console.error('Error loading stats:', err);
+    }
+    return { playCount: {}, recentlyPlayed: [] };
+}
+
+function saveStats(stats) {
+    try {
+        fs.writeFileSync(STATS_FILE, JSON.stringify(stats, null, 2));
+    } catch (err) {
+        console.error('Error saving stats:', err);
     }
 }
 
@@ -68,8 +109,50 @@ app.get('/api/playlists', (req, res) => {
 app.get('/api/songs/:playlistId?', (req, res) => {
     const data = loadPlaylists();
     const playlistId = req.params.playlistId || data.currentPlaylist;
+    
+    if (playlistId === 'most-played') {
+        const stats = loadStats();
+        const allSongs = data.playlists.flatMap(p => p.songs.map(s => ({...s, playlistId: p.id})));
+        const sortedSongs = allSongs
+            .map(song => ({...song, plays: stats.playCount[song.filename] || 0}))
+            .filter(song => song.plays > 0)
+            .sort((a, b) => b.plays - a.plays)
+            .slice(0, 50);
+        return res.json(sortedSongs);
+    }
+    
+    if (playlistId === 'recently-played') {
+        const stats = loadStats();
+        const allSongs = data.playlists.flatMap(p => p.songs.map(s => ({...s, playlistId: p.id})));
+        const recentSongs = stats.recentlyPlayed
+            .map(filename => allSongs.find(s => s.filename === filename))
+            .filter(s => s);
+        return res.json(recentSongs);
+    }
+    
     const playlist = data.playlists.find(p => p.id === playlistId);
     res.json(playlist ? playlist.songs : []);
+});
+
+app.post('/api/play/:filename', (req, res) => {
+    const stats = loadStats();
+    const filename = req.params.filename;
+    
+    stats.playCount[filename] = (stats.playCount[filename] || 0) + 1;
+    
+    stats.recentlyPlayed = stats.recentlyPlayed.filter(f => f !== filename);
+    stats.recentlyPlayed.unshift(filename);
+    stats.recentlyPlayed = stats.recentlyPlayed.slice(0, 50);
+    
+    saveStats(stats);
+    console.log(`Play tracked: ${filename}, Total plays: ${stats.playCount[filename]}`);
+    res.json({ success: true, plays: stats.playCount[filename] });
+});
+
+app.get('/api/stats/:filename', (req, res) => {
+    const stats = loadStats();
+    const filename = req.params.filename;
+    res.json({ plays: stats.playCount[filename] || 0 });
 });
 
 app.post('/api/playlists', (req, res) => {
@@ -194,19 +277,28 @@ app.delete('/api/songs/:playlistId/:index', (req, res) => {
 
 app.get('/api/search', (req, res) => {
     const query = req.query.q?.toLowerCase() || '';
-    const data = loadPlaylists();
     
     if (!query) {
         return res.json([]);
     }
     
-    const allSongs = data.playlists.flatMap(p => p.songs.map(s => ({...s, playlistId: p.id, playlistName: p.name})));
-    const results = allSongs.filter(song => 
-        song.title.toLowerCase().includes(query) || 
-        song.artist.toLowerCase().includes(query)
-    );
+    const queryWords = query.split(/\s+/).filter(w => w.length > 0);
+    const resultMap = new Map();
     
-    res.json(results);
+    queryWords.forEach(word => {
+        for (const [key, songs] of searchIndex) {
+            if (key.includes(word)) {
+                songs.forEach(item => {
+                    const uniqueKey = `${item.playlistId}-${item.song.filename}`;
+                    if (!resultMap.has(uniqueKey)) {
+                        resultMap.set(uniqueKey, item.song);
+                    }
+                });
+            }
+        }
+    });
+    
+    res.json(Array.from(resultMap.values()));
 });
 
 function formatDuration(seconds) {
@@ -250,4 +342,5 @@ app.post('/api/songs/insert', upload.single('audio'), async (req, res) => {
 
 app.listen(PORT, () => {
     console.log(`🎵 MusicFlow running on http://localhost:${PORT}`);
+    buildSearchIndex(loadPlaylists());
 });
